@@ -48,7 +48,7 @@ def pz_approx(a, h, kernel, nums):
             f[i] += 1 / (len(a) * h) * np.sum(kernel((t[i] - a[j]) / h))
     return f
 
-def get_quartinles(x, a):
+def get_quantiles(x, a):
     y = np.cumsum(a) / np.sum(a)
     indexes = np.argsort(abs(y - 0.05))[:2]
     q5 = x[indexes][0]
@@ -88,7 +88,7 @@ def get_pz_quantils(dist, h, num_points = 200):
     a = np.array(dist)
     t = np.linspace(np.min(a), np.max(a), num_points)
     f = pz_approx(a, h, dist_norm, num_points)
-    q5, q50, q95 = get_quartiles(t, f)
+    q5, q50, q95 = get_quantiles(t, f)
     return q5, q50, q95
 
 
