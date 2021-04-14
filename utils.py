@@ -36,6 +36,78 @@ class AverageMeter(object):
 
     def average(self):
         return self.avg
+    
+
+dist_norm = lambda x : np.exp(- x ** 2 / 2) / (2 * np.pi) ** (1/2) 
+
+def pz_approx(a, h, kernel, nums):
+    t = np.linspace(min(a), max(a), nums)
+    f = np.zeros(t.shape)
+    for i in range(len(t)):
+        for j in range(len(a)):
+            f[i] += 1 / (len(a) * h) * np.sum(kernel((t[i] - a[j]) / h))
+    return f
+
+def get_quartinles(x, a):
+    y = np.cumsum(a) / np.sum(a)
+    indexes = np.argsort(abs(y - 0.05))[:2]
+    q5 = x[indexes][0]
+    indexes = np.argsort(abs(y - 0.5))[:2]
+    q50 = x[indexes][0]
+    indexes = np.argsort(abs(y - 0.95))[:2]
+    q95 = x[indexes][0]
+    return q5, q50, q95
+
+def get_h(dist, h=0.01):
+    direction = 1e-4
+    a = np.array(dist)
+    f = -np.Inf
+    flag = True
+    while abs(direction) >= 1e-5: 
+        l = []
+        h += direction
+        if h <= 0:
+            print('!')
+            break 
+        for i in range(len(a)):
+            l.append(np.log(np.sum([dist_norm((a[i] - a[j]) / h) for j in range(len(a)) if i != j]) / (len(a) - 1) / h))
+        r = np.sum(l) / len(a)              
+        if r < f:
+            h -= direction
+            if flag:
+                direction = -direction
+                flag = False
+            else:
+                direction = direction * 1e-1
+        else:
+            f = r
+    return h
+
+
+def get_pz_quantils(dist, h, num_points = 200):
+    a = np.array(dist)
+    t = np.linspace(np.min(a), np.max(a), num_points)
+    f = pz_approx(a, h, dist_norm, num_points)
+    q5, q50, q95 = get_quartiles(t, f)
+    return q5, q50, q95
+
+
+def plot_dist_pz(dist, h, num_points = 200):
+    a = np.array(dist)
+    hist, x, *_ = np.histogram(a, bins=10);
+    hist = hist / sum(hist) / (x[1] - x[0])
+    plt.bar([(x[i] + x[i+1]) / 2 for i in range(len(x) - 1)], hist, width=(x[1] - x[0]))
+    t = np.linspace(np.min(a), np.max(a), num_points)
+    f = pz_approx(a, h, dist_norm, num_points)
+    q5, q50, q95 = get_quartiles(t, f)
+    plt.plot(t, f, 'r')
+    plt.xlabel('Удельное содержание асбеста')
+    plt.vlines(np.array([q5, q50, q95]), 0, max(hist))
+    print('Квантиль на уровне доверительной вероятности 0.05 = ', q5)
+    print('Квантиль на уровне доверительной вероятности 0.50 = ', q50)
+    print('Квантиль на уровне доверительной вероятности 0.95 = ', q95)
+    return q5, q50, q95
+
 
 def parse_anno_file(cvat_xml):
     root = etree.parse(cvat_xml).getroot()
@@ -74,21 +146,7 @@ def create_mask_file(annotation, label, binary=True):
         mask = mask > 0 
     return mask
         
-# def create_mask_file(mask_path, width, height, bitness, color_map, background, shapes):
-#     mask = np.full((height, width, bitness // 8), background, dtype=np.uint8)
-#     for shape in shapes:
-#         color = color_map.get(shape['label'], background)
-#         points = [tuple(map(float, p.split(','))) for p in shape['points'].split(';')]
-#         points = np.array([(int(p[0]), int(p[1])) for p in points])
 
-#         mask = cv2.fillPoly(mask, [points], color=color)
-    
-#     return mask
-#     cv2.imwrite(mask_path, mask)
-
-# def create_empty_mask_file(mask_path, width, height, bitness, color_map, background, shapes):
-#     mask = np.full((height, width, bitness // 8), background, dtype=np.uint8)
-#     cv2.imwrite(mask_path, mask)
 def get_time(file):
     return datetime.strptime(file.split('_')[1] + '_' + file.split('_')[2], '%H:%M:%S_%d-%m-%Y')
 
